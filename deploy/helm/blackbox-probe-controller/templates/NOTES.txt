@@ -1,0 +1,16 @@
+blackbox-probe-controller has been installed.
+
+Release: {{ .Release.Name }}
+Namespace: {{ include "blackbox-probe-controller.namespace" . }}
+
+Image: {{ include "blackbox-probe-controller.image" . }}
+
+Prerequisites in the home cluster:
+  - VictoriaMetrics Operator with VMProbe CRD
+  - Namespace "{{ .Values.controller.vmprobeNamespace }}" for VMProbe resources
+
+Register a remote cluster:
+  kubectl apply -f config/samples/cluster_secret.yaml -n {{ include "blackbox-probe-controller.namespace" . }}
+
+Annotate Ingress in remote clusters:
+  blackbox-probe-controller.tapclap.com/enabled: "true"

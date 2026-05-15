@@ -1,0 +1,239 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  REGISTRY: ghcr.io
+  CHART_PATH: deploy/helm/blackbox-probe-controller
+
+jobs:
+  lint:
+    permissions:
+      contents: read
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@main
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@main
+        with:
+          go-version-file: go.mod
+
+      - name: Check linter configuration
+        run: make lint-config
+
+      - name: Run linter
+        run: make lint
+
+  test:
+    permissions:
+      contents: read
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@main
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@main
+        with:
+          go-version-file: go.mod
+
+      - name: Running Tests
+        run: |
+          go mod tidy
+          make test
+
+  test-e2e:
+    permissions:
+      contents: read
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@main
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@main
+        with:
+          go-version-file: go.mod
+
+      - name: Install the latest version of kind
+        run: |
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/latest/kind-linux-$(go env GOARCH)
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+
+      - name: Verify kind installation
+        run: kind version
+
+      - name: Running Test e2e
+        run: |
+          go mod tidy
+          make test-e2e
+
+  publish-image:
+    needs: [lint, test, test-e2e]
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.ref == 'refs/heads/main' ||
+      startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+      packages: write
+    name: Publish container image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@main
+        with:
+          persist-credentials: false
+
+      - name: Lowercase image name
+        id: image
+        run: |
+          repo="${GITHUB_REPOSITORY,,}"
+          echo "name=${REGISTRY}/${repo}" >> "${GITHUB_OUTPUT}"
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@master
+        with:
+          images: ${{ steps.image.outputs.name }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Login to GHCR
+        uses: docker/login-action@master
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@master
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  publish-chart:
+    needs: [lint, test, test-e2e]
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.ref == 'refs/heads/main' ||
+      startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+      packages: write
+    name: Publish Helm chart
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@main
+        with:
+          persist-credentials: false
+
+      - name: Lowercase registry owner
+        id: registry
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          repo="${GITHUB_REPOSITORY,,}"
+          echo "owner=${owner}" >> "${GITHUB_OUTPUT}"
+          echo "repo=${repo}" >> "${GITHUB_OUTPUT}"
+          echo "oci=${REGISTRY}/${repo}/helm-charts" >> "${GITHUB_OUTPUT}"
+
+      - name: Install Helm
+        uses: azure/setup-helm@v5
+        with:
+          version: v3.16.4
+
+      - name: Resolve chart version
+        id: version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            version="${GITHUB_REF#refs/tags/}"
+          elif [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
+            version="v0.0.0-main.${GITHUB_SHA::7}"
+          else
+            version="v0.0.0-${GITHUB_SHA::7}"
+          fi
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Package chart
+        run: |
+          helm package "${CHART_PATH}" \
+            --version "${{ steps.version.outputs.version }}" \
+            --app-version "${{ steps.version.outputs.version }}" \
+            --destination /tmp/charts
+
+      - name: Login to GHCR (Helm OCI)
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login "${REGISTRY}" \
+            --username "${{ github.actor }}" \
+            --password-stdin
+
+      - name: Push chart
+        run: |
+          chart_tgz=$(ls /tmp/charts/blackbox-probe-controller-*.tgz)
+          helm push "${chart_tgz}" "oci://${REGISTRY}/${{ steps.registry.outputs.repo }}/helm-charts"
+
+  release:
+    needs: [publish-image, publish-chart]
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    name: GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@main
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve release metadata
+        id: meta
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          version="${tag#v}"
+          prerelease=false
+          if [[ "${version}" == *-* ]]; then
+            prerelease=true
+          fi
+          {
+            echo "tag=${tag}"
+            echo "version=${version}"
+            echo "prerelease=${prerelease}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Build release notes
+        env:
+          REGISTRY: ${{ env.REGISTRY }}
+        run: bash .github/scripts/build-release-notes.sh
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: Release ${{ steps.meta.outputs.tag }}
+          body_path: release-notes.md
+          prerelease: ${{ steps.meta.outputs.prerelease }}
+          generate_release_notes: false

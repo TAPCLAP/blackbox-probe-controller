@@ -1,0 +1,154 @@
+name: PR preview (image + chart)
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+permissions:
+  contents: read
+  packages: write
+  pull-requests: write
+
+env:
+  REGISTRY: ghcr.io
+  CHART_PATH: deploy/helm/blackbox-probe-controller
+
+jobs:
+  build-and-comment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@main
+        with:
+          persist-credentials: false
+
+      - name: Preview tags
+        id: preview
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          repo="${GITHUB_REPOSITORY,,}"
+          pr="${{ github.event.pull_request.number }}"
+          sha="${GITHUB_SHA::7}"
+          image_tag="pr-${pr}-${sha}"
+          chart_version="0.0.0-pr.${pr}.${sha}"
+          {
+            echo "owner=${owner}"
+            echo "repo=${repo}"
+            echo "image_repository=${REGISTRY}/${repo}"
+            echo "image=${REGISTRY}/${repo}:${image_tag}"
+            echo "image_tag=${image_tag}"
+            echo "chart_version=${chart_version}"
+            echo "chart_oci=oci://${REGISTRY}/${repo}/helm-charts"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Login to GHCR
+        uses: docker/login-action@master
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push preview image
+        uses: docker/build-push-action@master
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.preview.outputs.image }}
+
+      - name: Install Helm
+        uses: azure/setup-helm@v5
+        with:
+          version: v3.16.4
+
+      - name: Package and push preview chart
+        run: |
+          helm package "${CHART_PATH}" \
+            --version "${{ steps.preview.outputs.chart_version }}" \
+            --app-version "${{ github.event.pull_request.head.sha }}" \
+            --destination /tmp/charts
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login "${REGISTRY}" \
+            --username "${{ github.actor }}" \
+            --password-stdin
+          helm push /tmp/charts/blackbox-probe-controller-*.tgz \
+            "oci://${REGISTRY}//${{ steps.preview.outputs.repo }}/helm-charts"
+
+      - name: Post deploy comment
+        uses: actions/github-script@main
+        with:
+          script: |
+            const pr = context.payload.pull_request.number;
+            const image = `${{ steps.preview.outputs.image }}`;
+            const chartVersion = `${{ steps.preview.outputs.chart_version }}`;
+            const chartOCI = `${{ steps.preview.outputs.chart_oci }}`;
+            const imageRepository = `${{ steps.preview.outputs.image_repository }}`;
+            const body = `## Preview build (PR #${pr})
+
+            Собраны временные артефакты для проверки этого PR. После закрытия PR теги будут удалены из GHCR.
+
+            | Артефакт | Значение |
+            |----------|----------|
+            | Container image | \`${image}\` |
+            | Helm chart (OCI) | \`${chartOCI}\` |
+            | Chart version | \`${chartVersion}\` |
+
+            ### Установка Helm chart
+
+            \`\`\`bash
+            # Prerequisites: VMProbe CRD (VictoriaMetrics operator), namespace monitoring
+            helm registry login ghcr.io -u YOUR_GITHUB_USER
+
+            helm upgrade --install blackbox-probe-controller \\
+              ${chartOCI} \\
+              --version ${chartVersion} \\
+              --namespace blackbox-probe-controller-system \\
+              --create-namespace \\
+              --set image.repository=${imageRepository} \\
+              --set image.tag=${{ steps.preview.outputs.image_tag }}
+            \`\`\`
+
+            ### Kustomize (локальный манифест)
+
+            \`\`\`bash
+            kubectl apply -k deploy/kustomize
+            kubectl -n blackbox-probe-controller-system set image deployment/blackbox-probe-controller-controller-manager \\
+              manager=${image}
+            \`\`\`
+
+            ### Remote cluster Secret (пример)
+
+            \`\`\`bash
+            kubectl apply -f config/samples/cluster_secret.yaml -n blackbox-probe-controller-system
+            \`\`\`
+            `;
+
+            const marker = '<!-- blackbox-probe-controller-pr-preview -->';
+            const fullBody = marker + '\n' + body;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr,
+            });
+
+            const existing = comments.find((c) =>
+              c.user.type === 'Bot' && c.body.includes(marker)
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: fullBody,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr,
+                body: fullBody,
+              });
+            }

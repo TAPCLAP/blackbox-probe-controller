@@ -1,0 +1,24 @@
+# Example Ingress in a remote cluster (apply in the monitored cluster).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ad-manager-backend
+  namespace: internal
+  annotations:
+    blackbox-probe-controller.tapclap.com/enabled: "true"
+    blackbox-probe-controller.tapclap.com/probe-path: "/ready"
+spec:
+  tls:
+  - hosts:
+    - ad-manager-backend.tapclap.com
+  rules:
+  - host: ad-manager-backend.tapclap.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ad-manager-backend
+            port:
+              number: 80

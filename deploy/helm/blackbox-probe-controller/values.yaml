@@ -1,0 +1,79 @@
+# Default values for blackbox-probe-controller.
+
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: ghcr.io/tapclap/blackbox-probe-controller
+  tag: v0.0.3
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+rbac:
+  create: true
+
+leaderElection:
+  enabled: true
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 128Mi
+  requests:
+    cpu: 10m
+    memory: 64Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Operator namespace (Helm release namespace is used when empty).
+namespaceOverride: ""
+
+controller:
+  vmprobeNamespace: monitoring
+  clusterSecretNamespace: ""
+  probeInterval: 20s
+  probeScrapeTimeout: 18s
+  probeModule: http_2xx
+  blackboxProberURL: blackbox.monitoring.svc:9115
+
+metrics:
+  enabled: false
+
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: health
+  initialDelaySeconds: 15
+  periodSeconds: 20
+
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: health
+  initialDelaySeconds: 5
+  periodSeconds: 10

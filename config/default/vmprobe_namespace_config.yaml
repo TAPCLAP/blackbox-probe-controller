@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vmprobe-namespace-config
+  namespace: system
+data:
+  namespace: monitoring

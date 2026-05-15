@@ -1,0 +1,17 @@
+# Production-oriented Kustomize overlay. Builds on the kubebuilder scaffold in config/.
+#
+# Usage:
+#   kubectl apply -k deploy/kustomize
+#   # or with a custom image:
+#   cd deploy/kustomize && kustomize edit set image controller=ghcr.io/tapclap/blackbox-probe-controller:v0.1.0
+#   kubectl apply -k .
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../config/default
+
+images:
+  - name: controller
+    newName: ghcr.io/tapclap/blackbox-probe-controller
+    newTag: v0.0.3

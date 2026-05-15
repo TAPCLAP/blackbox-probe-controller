@@ -1,0 +1,104 @@
+{{- if .Values.rbac.create }}
+{{- $relNS := include "blackbox-probe-controller.namespace" . }}
+{{- $secretNS := include "blackbox-probe-controller.clusterSecretNamespace" . }}
+{{- $vmprobeNS := .Values.controller.vmprobeNamespace }}
+{{- $saName := include "blackbox-probe-controller.serviceAccountName" . }}
+{{- $fullname := include "blackbox-probe-controller.fullname" . }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $fullname }}-cluster-config
+  namespace: {{ $secretNS }}
+  labels:
+    {{- include "blackbox-probe-controller.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["events.k8s.io"]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $fullname }}-cluster-config
+  namespace: {{ $secretNS }}
+  labels:
+    {{- include "blackbox-probe-controller.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $fullname }}-cluster-config
+subjects:
+  - kind: ServiceAccount
+    name: {{ $saName }}
+    namespace: {{ $relNS }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $fullname }}-vmprobe
+  namespace: {{ $vmprobeNS }}
+  labels:
+    {{- include "blackbox-probe-controller.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["events.k8s.io"]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+  - apiGroups: ["operator.victoriametrics.com"]
+    resources: ["vmprobes"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $fullname }}-vmprobe
+  namespace: {{ $vmprobeNS }}
+  labels:
+    {{- include "blackbox-probe-controller.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $fullname }}-vmprobe
+subjects:
+  - kind: ServiceAccount
+    name: {{ $saName }}
+    namespace: {{ $relNS }}
+{{- if .Values.leaderElection.enabled }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $fullname }}-leader-election
+  namespace: {{ $relNS }}
+  labels:
+    {{- include "blackbox-probe-controller.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $fullname }}-leader-election
+  namespace: {{ $relNS }}
+  labels:
+    {{- include "blackbox-probe-controller.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $fullname }}-leader-election
+subjects:
+  - kind: ServiceAccount
+    name: {{ $saName }}
+    namespace: {{ $relNS }}
+{{- end }}
+{{- end }}

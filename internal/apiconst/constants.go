@@ -30,6 +30,10 @@ const (
 	ManagedByValue = "blackbox-probe-controller"
 
 	DefaultProbePath = "/ready"
-	KubeconfigKey    = "kubeconfig"
-	FinalizerName    = Domain + "/finalizer"
+	// KubeconfigKey is the preferred Secret data key for cluster kubeconfig.
+	KubeconfigKey = "kubeconfig"
+	FinalizerName = Domain + "/finalizer"
 )
+
+// KubeconfigKeys lists Secret data keys tried in order (first match wins).
+var KubeconfigKeys = []string{KubeconfigKey, "kubeconfig.yaml", "kubeconfig.yml"}

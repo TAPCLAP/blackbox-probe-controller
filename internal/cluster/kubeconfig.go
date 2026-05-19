@@ -38,11 +38,20 @@ func ClusterNameFromSecret(secret *corev1.Secret) (string, error) {
 	return name, nil
 }
 
+func kubeconfigDataFromSecret(secret *corev1.Secret) ([]byte, error) {
+	for _, key := range apiconst.KubeconfigKeys {
+		if data, ok := secret.Data[key]; ok {
+			return data, nil
+		}
+	}
+	return nil, fmt.Errorf("secret %s/%s missing kubeconfig data key (expected one of %v)", secret.Namespace, secret.Name, apiconst.KubeconfigKeys)
+}
+
 // RESTConfigFromSecret builds a REST config from the kubeconfig data in a Secret.
 func RESTConfigFromSecret(secret *corev1.Secret) (*rest.Config, error) {
-	data, ok := secret.Data[apiconst.KubeconfigKey]
-	if !ok {
-		return nil, fmt.Errorf("secret %s/%s missing data key %q", secret.Namespace, secret.Name, apiconst.KubeconfigKey)
+	data, err := kubeconfigDataFromSecret(secret)
+	if err != nil {
+		return nil, err
 	}
 	cfg, err := clientcmd.RESTConfigFromKubeConfig(data)
 	if err != nil {

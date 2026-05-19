@@ -171,11 +171,11 @@ jobs:
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             version="${GITHUB_REF#refs/tags/}"
           elif [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
-            version="v0.0.2-main.${GITHUB_SHA::7}"
+            version="v0.0.3-main.${GITHUB_SHA::7}"
           else
             ref="${GITHUB_REF#refs/heads/}"
             ref="${ref//\//-}"  # replace slashes with dashes for branch names with /
-            version="v0.0.2-${ref}.${GITHUB_SHA::7}"
+            version="v0.0.3-${ref}.${GITHUB_SHA::7}"
           fi
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
 

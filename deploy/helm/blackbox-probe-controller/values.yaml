@@ -5,7 +5,7 @@ fullnameOverride: ""
 
 image:
   repository: ghcr.io/tapclap/blackbox-probe-controller
-  tag: v0.0.1
+  tag: v0.0.2
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []

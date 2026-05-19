@@ -98,7 +98,7 @@ Published to GHCR on release (see [CI](#ci-cd)):
 ```bash
 helm upgrade --install blackbox-probe-controller \
   oci://ghcr.io/tapclap/blackbox-probe-controller/helm-charts/blackbox-probe-controller \
-  --version v0.0.1 \
+  --version v0.0.2 \
   --namespace blackbox-probe-controller-system \
   --create-namespace
 ```
@@ -108,7 +108,7 @@ See the [chart README](deploy/helm/blackbox-probe-controller/README.md) for all 
 ### Kustomize
 
 ```bash
-# default image: ghcr.io/tapclap/blackbox-probe-controller:v0.0.1
+# default image: ghcr.io/tapclap/blackbox-probe-controller:v0.0.2
 kubectl apply -k deploy/kustomize
 ```
 

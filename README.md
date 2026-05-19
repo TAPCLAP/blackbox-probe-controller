@@ -78,6 +78,7 @@ Example: [`config/samples/cluster_secret.yaml`](config/samples/cluster_secret.ya
 | `--probe-interval` | `20s` | VMProbe scrape interval |
 | `--probe-scrape-timeout` | `18s` | VMProbe scrape timeout |
 | `--probe-module` | `http_2xx` | Blackbox module name |
+| `--probe-job-name` | *(empty)* | VMProbe `spec.jobName`; when empty, uses the generated VMProbe resource name |
 | `--blackbox-prober-url` | `blackbox.monitoring.svc:9115` | Blackbox exporter address |
 | `--leader-elect` | off locally / on in chart | Enable leader election |
 

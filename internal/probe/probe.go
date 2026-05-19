@@ -66,6 +66,10 @@ func BuildVMProbe(
 	targets []string,
 ) *vmv1beta1.VMProbe {
 	name := VMProbeName(clusterName, sourceNamespace)
+	jobName := name
+	if opts.ProbeJobName != "" {
+		jobName = opts.ProbeJobName
+	}
 	labels := map[string]string{
 		"app.kubernetes.io/managed-by": apiconst.ManagedByValue,
 		apiconst.LabelCluster:          clusterName,
@@ -83,7 +87,7 @@ func BuildVMProbe(
 			Labels:    labels,
 		},
 		Spec: vmv1beta1.VMProbeSpec{
-			JobName: name,
+			JobName: jobName,
 			Module:  opts.ProbeModule,
 			EndpointScrapeParams: vmv1beta1.EndpointScrapeParams{
 				Interval:      opts.ProbeInterval,

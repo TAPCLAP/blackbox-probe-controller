@@ -23,5 +23,6 @@ type Options struct {
 	ProbeInterval          string
 	ProbeScrapeTimeout     string
 	ProbeModule            string
+	ProbeJobName           string
 	BlackboxProberURL      string
 }

@@ -43,6 +43,9 @@ spec:
             - --probe-interval={{ .Values.controller.probeInterval }}
             - --probe-scrape-timeout={{ .Values.controller.probeScrapeTimeout }}
             - --probe-module={{ .Values.controller.probeModule }}
+            {{- if .Values.controller.probeJobName }}
+            - --probe-job-name={{ .Values.controller.probeJobName }}
+            {{- end }}
             - --blackbox-prober-url={{ .Values.controller.blackboxProberURL }}
             {{- if .Values.leaderElection.enabled }}
             - --leader-elect

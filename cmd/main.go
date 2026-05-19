@@ -73,6 +73,7 @@ func main() {
 	var probeInterval string
 	var probeScrapeTimeout string
 	var probeModule string
+	var probeJobName string
 	var blackboxProberURL string
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
@@ -99,6 +100,8 @@ func main() {
 	flag.StringVar(&probeInterval, "probe-interval", "20s", "VMProbe scrape interval")
 	flag.StringVar(&probeScrapeTimeout, "probe-scrape-timeout", "18s", "VMProbe scrape timeout")
 	flag.StringVar(&probeModule, "probe-module", "http_2xx", "Blackbox exporter module name")
+	flag.StringVar(&probeJobName, "probe-job-name", "",
+		"VMProbe spec.jobName (defaults to the generated VMProbe resource name when empty)")
 	flag.StringVar(&blackboxProberURL, "blackbox-prober-url", "blackbox.monitoring.svc:9115", "Blackbox exporter URL")
 
 	zapOpts := zap.Options{
@@ -120,6 +123,7 @@ func main() {
 		ProbeInterval:          probeInterval,
 		ProbeScrapeTimeout:     probeScrapeTimeout,
 		ProbeModule:            probeModule,
+		ProbeJobName:           probeJobName,
 		BlackboxProberURL:      blackboxProberURL,
 	}
 

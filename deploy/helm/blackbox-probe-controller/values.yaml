@@ -59,6 +59,8 @@ controller:
   probeInterval: 20s
   probeScrapeTimeout: 18s
   probeModule: http_2xx
+  # When empty, spec.jobName matches the generated VMProbe resource name.
+  probeJobName: ""
   blackboxProberURL: blackbox.monitoring.svc:9115
 
 metrics:
